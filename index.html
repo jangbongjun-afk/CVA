@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>거북목 각도 측정기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f7f7; --panel:#ffffff; --ink:#15211f; --muted:#5b6b68; --line:#d6dfdd;
+  --accent:#0f7c6e; --accent-soft:#e3f2ef; --mark:#d9480f; --mark-soft:#fdebe2;
+  --good:#2f7d32; --warn:#b45309; --canvas:#e9eeed;
+  --f-body:"IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1514; --panel:#172120; --ink:#e6eeec; --muted:#9db0ac; --line:#2a3836;
+  --accent:#4cc2b0; --accent-soft:#163a35; --mark:#ff8a4c; --mark-soft:#3a2216;
+  --good:#7ccf80; --warn:#f0b35a; --canvas:#1d2a28; color-scheme:dark }}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;margin:0;
+  padding:20px max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left))}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:18px}
+header h1{font-size:1.6rem;margin:0;font-weight:700}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line)}
+.tab{font:inherit;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px;color:var(--muted);cursor:pointer}
+.tab[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0;padding:16px;display:grid;gap:14px}
+.toolbar,.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:inherit;font-size:.92rem;font-weight:600;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.on{background:var(--mark-soft);border-color:var(--mark)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:.85rem}
+.file{position:relative}.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+canvas{display:block;width:100%;height:auto;max-height:68vh;object-fit:contain;background:var(--canvas);border-radius:8px;touch-action:none}
+.hint,.small{font-size:.82rem;color:var(--muted);margin:0}
+.label{font-size:.75rem;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.readout{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.deg{font-family:var(--f-num);font-size:3.4rem;font-weight:600;line-height:1}
+.chip{font-size:.85rem;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.chip.good{color:var(--good)}.chip.warn{color:var(--warn)}.chip.none{color:var(--muted)}
+.scale{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--warn) 0 50%,var(--good) 50% 100%);opacity:.85}
+.scale i{position:absolute;top:-4px;width:3px;height:18px;background:var(--ink);border-radius:2px;transform:translateX(-50%)}
+.ticks{display:flex;justify-content:space-between;font-family:var(--f-num);font-size:.75rem;color:var(--muted)}
+.status{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--accent-soft)}
+.status.err{background:var(--mark-soft)}
+.ai{border-left:3px solid var(--accent);padding:4px 0 4px 12px;display:grid;gap:6px}
+.ai p{margin:0}.ai .adv{font-weight:600}
+input[type=text],select,textarea{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-width:0}
+input[type=text]{flex:1 1 120px}
+textarea{width:100%;resize:vertical;min-height:70px}
+.recs{display:grid;gap:10px}
+.rec{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:6px}
+.rec .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.rec .v{font-family:var(--f-num);font-weight:600;font-size:1.1rem}
+.rec .d{font-family:var(--f-num);font-size:.85rem;color:var(--muted)}
+.rec p{margin:0;font-size:.9rem}
+.note{background:var(--accent-soft);border-radius:6px;padding:6px 10px;font-size:.9rem}
+.x{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;font-size:.85rem;margin-left:auto}
+details summary{cursor:pointer;font-weight:600}
+.steps{margin:6px 0 0;padding-left:1.2em;display:grid;gap:6px;font-size:.92rem}
+.tblwrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;color:var(--muted);font-weight:600}
+td.n{font-family:var(--f-num);white-space:nowrap}
+tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>거북목 각도 측정기</h1>
+    <p>옆모습 사진을 올리면 기기 안의 AI가 귀와 목·어깨 위치를 찾아 두개척추각(CVA)을 재고 자세를 설명해 줍니다. 계정이 필요 없고, 사진은 기기 밖으로 나가지 않아요.</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabP" aria-selected="true" aria-controls="viewP">참여자 · 측정</button>
+    <button class="tab" role="tab" id="tabT" aria-selected="false" aria-controls="viewT">치료사</button>
+  </div>
+
+  <!-- 참여자 -->
+  <div id="viewP" class="grid" role="tabpanel">
+    <section class="card" aria-label="측정 화면">
+      <div class="toolbar">
+        <span class="file btn primary"><span>사진 올리기</span><input id="photo" type="file" accept="image/*" aria-label="옆모습 사진 올리기"></span>
+        <button id="setEar" class="btn" type="button">귀(이주) 찍기</button>
+        <button id="setC7" class="btn" type="button">C7 찍기</button>
+      </div>
+      <canvas id="cv" width="900" height="700" aria-label="사진과 측정선"></canvas>
+      <p id="hint" class="hint">지금은 예시 그림이에요. 사진을 올리면 AI가 자동으로 분석합니다.</p>
+    </section>
+
+    <aside class="card" aria-label="측정 결과">
+      <div>
+        <div class="label">두개척추각 (CVA)</div>
+        <div class="readout"><span id="deg" class="deg">--.-°</span><span id="chip" class="chip none">측정 전</span></div>
+      </div>
+      <div>
+        <div class="scale" aria-hidden="true"><i id="pin" style="left:0%"></i></div>
+        <div class="ticks"><span>35°</span><span>50° 기준</span><span>65°</span></div>
+      </div>
+      <div id="status" class="status">AI 모델을 준비하는 중이에요…</div>
+
+      <div id="ai" class="ai" hidden aria-live="polite">
+        <div class="label">AI 설명</div>
+        <p id="aiExplain"></p>
+        <p id="aiAdvice" class="adv"></p>
+      </div>
+
+      <div class="recs">
+        <div class="label">저장하고 치료사에게 보내기</div>
+        <div class="row"><input id="code" type="text" maxlength="12" placeholder="참여자 번호 (예: P07)" aria-label="참여자 번호"></div>
+        <div class="row">
+          <select id="tag" aria-label="측정 시점">
+            <option>T0 사전</option><option>1주차</option><option>2주차</option><option>3주차</option><option>T1 사후 (4주)</option><option>기타</option>
+          </select>
+          <button id="save" class="btn primary" type="button">저장 · 보내기</button>
+        </div>
+        <p class="small">저장하면 결과 메시지가 만들어져요. 카카오톡이나 문자로 치료사에게 보내면 됩니다. 이름은 적지 마세요.</p>
+      </div>
+
+      <div class="recs">
+        <div class="label">내 기록 (이 기기에 저장)</div>
+        <div id="myRecs" class="recs"></div>
+        <p class="small">첫 기록보다 5.07° 이상 달라지면 측정 오차(MDC)를 넘는 변화로 봅니다 (Carrasco-Uribarren et al., 2023).</p>
+      </div>
+
+      <details>
+        <summary>사진 찍는 방법</summary>
+        <ol class="steps">
+          <li>C7 가시돌기(고개를 숙이면 목 뒤에 가장 튀어나오는 뼈)와 귀 앞 이주에 동그란 스티커를 붙여요.</li>
+          <li>바닥 표시에 서서 고개를 3번 숙였다 편 뒤 정면을 봐요.</li>
+          <li>삼각대에 고정한 휴대폰으로 옆에서, 매번 같은 거리·높이로 찍어요. 머리부터 엉덩이까지 나오게 해 주세요.</li>
+        </ol>
+      </details>
+      <p class="small">AI는 Google MediaPipe 자세 인식 모델로, 귀와 어깨는 직접 찾고 C7은 어깨 위치로 추정해요. C7 점이 스티커와 다르면 끌어서 맞춘 뒤 저장하세요. CVA 50° 미만을 거북목으로 봅니다 (Abbasi et al., 2016). AI 설명은 참고용이며 진단이 아닙니다.</p>
+    </aside>
+  </div>
+
+  <!-- 치료사 -->
+  <div id="viewT" class="grid" role="tabpanel" hidden>
+    <section class="card">
+      <div class="label">참여자 메시지 붙여넣기</div>
+      <textarea id="paste" placeholder="참여자가 보낸 결과 메시지를 그대로 붙여넣으세요. 여러 개를 한꺼번에 붙여넣어도 돼요." aria-label="참여자 메시지"></textarea>
+      <div class="row">
+        <button id="import" class="btn primary" type="button">불러오기</button>
+        <button id="csv" class="btn" type="button">CSV 내려받기</button>
+        <span id="impMsg" class="small"></span>
+      </div>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>참여자</th><th>기록</th><th>첫 CVA</th><th>최근 CVA</th><th>변화</th></tr></thead>
+          <tbody id="ptRows"></tbody>
+        </table>
+      </div>
+      <p class="small">기록은 이 기기(브라우저)에만 저장돼요. 연구 자료는 CSV로 내려받아 따로 보관하세요.</p>
+    </section>
+    <section class="card" id="detail">
+      <p class="small">왼쪽 표에서 참여자를 누르면 기록과 AI 설명이 보이고, 피드백을 보낼 수 있어요.</p>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const fmt = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+const diffText = (v, b) => { const x = v - b; return (x >= 0 ? '+' : '') + x.toFixed(1) + '°' + (Math.abs(x) >= 5.07 ? ' · MDC 이상' : ''); };
+
+/* ---------- 탭 ---------- */
+function showTab(t) {
+  $('tabP').setAttribute('aria-selected', t === 'P'); $('tabT').setAttribute('aria-selected', t === 'T');
+  $('viewP').hidden = t !== 'P'; $('viewT').hidden = t !== 'T';
+  if (t === 'P') draw(); else renderDash();
+}
+$('tabP').onclick = () => showTab('P'); $('tabT').onclick = () => showTab('T');
+
+/* ---------- 그리기 ---------- */
+let img = null, isExample = true, mode = null, drag = null, ai = null, adjusted = false;
+let pts = { ear: { x: 0.565, y: 0.30 }, c7: { x: 0.42, y: 0.50 } };
+function fit() { const w = img ? img.naturalWidth : 900, h = img ? img.naturalHeight : 700, s = Math.min(1600/w, 1600/h, 1); cv.width = Math.round(w*s); cv.height = Math.round(h*s); }
+function drawExample() {
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = css('--canvas'); ctx.fillRect(0, 0, W, H); ctx.fillStyle = css('--line');
+  ctx.beginPath(); ctx.moveTo(W*.30, H); ctx.lineTo(W*.33, H*.62); ctx.quadraticCurveTo(W*.40, H*.50, W*.50, H*.52); ctx.quadraticCurveTo(W*.62, H*.56, W*.66, H*.70); ctx.lineTo(W*.70, H); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(W*.43, H*.53); ctx.lineTo(W*.50, H*.36); ctx.lineTo(W*.60, H*.40); ctx.lineTo(W*.55, H*.55); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W*.60, H*.27, W*.095, H*.13, -.25, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = css('--muted'); ctx.font = `600 ${Math.round(W*.022)}px ${css('--f-body')}`; ctx.fillText('예시 그림', W*.04, H*.07);
+}
+function angle() { const W = cv.width, H = cv.height; return Math.atan2(pts.c7.y*H - pts.ear.y*H, Math.abs(pts.ear.x*W - pts.c7.x*W)) * 180 / Math.PI; }
+function draw() {
+  fit(); if (img) ctx.drawImage(img, 0, 0, cv.width, cv.height); else drawExample();
+  const W = cv.width, H = cv.height, r = Math.max(8, W*.012);
+  const e = { x: pts.ear.x*W, y: pts.ear.y*H }, c = { x: pts.c7.x*W, y: pts.c7.y*H };
+  const dir = e.x >= c.x ? 1 : -1, len = Math.max(Math.hypot(e.x-c.x, e.y-c.y)*1.25, W*.15);
+  ctx.lineWidth = Math.max(2, W*.003);
+  ctx.setLineDash([10, 8]); ctx.strokeStyle = css('--accent'); ctx.beginPath(); ctx.moveTo(c.x - dir*W*.05, c.y); ctx.lineTo(c.x + dir*len, c.y); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = css('--mark'); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(e.x, e.y); ctx.stroke();
+  const a = angle()*Math.PI/180, ar = Math.min(len*.35, W*.12);
+  ctx.strokeStyle = css('--ink'); ctx.beginPath(); if (dir > 0) ctx.arc(c.x, c.y, ar, -a, 0); else ctx.arc(c.x, c.y, ar, Math.PI, Math.PI + a); ctx.stroke();
+  ctx.fillStyle = css('--ink'); ctx.font = `600 ${Math.round(W*.03)}px ${css('--f-num')}`;
+  ctx.fillText(angle().toFixed(1) + '°', c.x + dir*(ar + W*.015) - (dir < 0 ? W*.11 : 0), c.y - W*.015);
+  for (const [p, col, lab] of [[e, css('--mark'), '이주'], [c, css('--accent'), 'C7']]) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = col; ctx.font = `700 ${Math.round(W*.024)}px ${css('--f-body')}`; ctx.fillText(lab, p.x + r + 6, p.y - r - 4);
+  }
+  readout();
+}
+function readout() {
+  const v = angle(), chip = $('chip'); $('deg').textContent = v.toFixed(1) + '°';
+  if (isExample) { chip.className = 'chip none'; chip.textContent = '예시'; }
+  else if (v < 50) { chip.className = 'chip warn'; chip.textContent = '거북목 범위 (50° 미만)'; }
+  else { chip.className = 'chip good'; chip.textContent = '정상 범위 (50° 이상)'; }
+  $('pin').style.left = Math.max(0, Math.min(100, (v - 35)/30*100)) + '%';
+  if (ai && !isExample) explain();
+}
+function status(m, err) { $('status').textContent = m; $('status').classList.toggle('err', !!err); }
+
+/* ---------- 점 찍기·끌기 ---------- */
+const toNorm = ev => { const r = cv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (ev.clientX - r.left)/r.width)), y: Math.min(1, Math.max(0, (ev.clientY - r.top)/r.height)) }; };
+cv.addEventListener('pointerdown', ev => {
+  const p = toNorm(ev), r = cv.getBoundingClientRect();
+  if (mode) { pts[mode] = p; if (img) isExample = false; adjusted = true; setMode(null); draw(); status('점을 찍었어요. 끌어서 더 정확히 맞출 수 있어요.'); return; }
+  let best = null, bd = 1e9;
+  for (const k of ['ear', 'c7']) { const d = Math.hypot((pts[k].x - p.x)*r.width, (pts[k].y - p.y)*r.height); if (d < bd) { bd = d; best = k; } }
+  if (bd < 40) { drag = best; cv.setPointerCapture(ev.pointerId); }
+});
+cv.addEventListener('pointermove', ev => { if (!drag) return; pts[drag] = toNorm(ev); if (img) isExample = false; adjusted = true; draw(); });
+cv.addEventListener('pointerup', () => { drag = null; }); cv.addEventListener('pointercancel', () => { drag = null; });
+function setMode(m) {
+  mode = m; $('setEar').classList.toggle('on', m === 'ear'); $('setC7').classList.toggle('on', m === 'c7');
+  if (m) status(m === 'ear' ? '사진에서 귀 앞 이주(스티커)를 눌러 주세요.' : '사진에서 C7 가시돌기(스티커)를 눌러 주세요.');
+}
+$('setEar').onclick = () => setMode(mode === 'ear' ? null : 'ear'); $('setC7').onclick = () => setMode(mode === 'c7' ? null : 'c7');
+
+/* ---------- 기기 안 AI (MediaPipe Pose Landmarker) ---------- */
+let landmarker = null;
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+(async () => {
+  try {
+    const { PoseLandmarker, FilesetResolver } = await import(MP + '/vision_bundle.mjs');
+    const fs = await FilesetResolver.forVisionTasks(MP + '/wasm');
+    landmarker = await PoseLandmarker.createFromOptions(fs, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task', delegate: 'CPU' },
+      runningMode: 'IMAGE', numPoses: 1
+    });
+    status('AI 준비 완료. 옆모습 사진을 올려 주세요.');
+    if (img) analyze();
+  } catch (e) {
+    console.error(e);
+    status('AI 모델을 불러오지 못했어요. 귀(이주)·C7 버튼으로 직접 찍어 측정할 수 있어요. [오류: ' + String((e && (e.message || e)) || e).slice(0, 120) + ']', true);
+  }
+})();
+
+function analyze() {
+  if (!landmarker || !img) return;
+  status('AI가 사진을 분석하는 중…');
+  setTimeout(() => {
+    try {
+      const res = landmarker.detect(img);
+      const L = res && res.landmarks && res.landmarks[0];
+      if (!L) throw new Error('none');
+      // 카메라 쪽(더 잘 보이는) 옆면 선택: 왼쪽 7·11·23, 오른쪽 8·12·24
+      const vis = i => (L[i].visibility ?? 1);
+      const side = (vis(7) + vis(11)) >= (vis(8) + vis(12)) ? { ear: 7, sh: 11, hip: 23 } : { ear: 8, sh: 12, hip: 24 };
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const P = i => ({ x: L[i].x*W, y: L[i].y*H });
+      const ear = P(side.ear), sh = P(side.sh), hip = P(side.hip), nose = P(0);
+      const face = Math.sign(nose.x - ear.x) || 1;          // +1: 오른쪽을 보고 있음
+      const d = Math.hypot(ear.x - sh.x, ear.y - sh.y);
+      // C7 추정: 어깨점에서 뒤쪽으로 0.25d, 위로 0.12d (사진 위 스티커로 보정 필요)
+      const c7 = { x: sh.x - face*0.25*d, y: sh.y - 0.12*d };
+      const cl = v => Math.min(1, Math.max(0, v));
+      pts = { ear: { x: cl(ear.x/W), y: cl(ear.y/H) }, c7: { x: cl(c7.x/W), y: cl(c7.y/H) } };
+      // 어깨 말림 지표: 어깨가 엉덩이보다 앞으로 나온 정도 (몸통 길이 대비)
+      const trunk = Math.hypot(sh.x - hip.x, sh.y - hip.y) || 1;
+      const shFwd = face*(sh.x - hip.x)/trunk;
+      const conf = Math.min(vis(side.ear), vis(side.sh));
+      ai = { shFwd, conf: conf > .8 ? 'high' : conf > .5 ? 'medium' : 'low', cvaAi: null };
+      isExample = false; adjusted = false; draw(); ai.cvaAi = Math.round(angle()*10)/10; explain();
+      status(`AI 분석 완료${ai.conf === 'low' ? ' (확신도 낮음: 옆모습 전체가 나오게 다시 찍어 보세요)' : ''}. C7 점이 목 뒤 스티커와 맞는지 확인하고, 다르면 끌어서 맞춘 뒤 저장하세요.`, ai.conf === 'low');
+    } catch (e) {
+      ai = null; $('ai').hidden = true;
+      status('사진에서 사람을 찾지 못했어요. 옆모습 전체가 나온 사진으로 다시 올리거나, 점을 직접 찍어 주세요.', true);
+    }
+  }, 30);
+}
+
+/* AI 설명: 측정값(CVA, 어깨 위치)으로 문장을 만듦 */
+function explain() {
+  const v = angle(); let ex, adv;
+  if (v >= 55) ex = `머리가 어깨 위에 비교적 바르게 놓여 있어요 (CVA ${v.toFixed(1)}°).`;
+  else if (v >= 50) ex = `머리가 어깨보다 살짝 앞에 있지만 정상 범위 안이에요 (CVA ${v.toFixed(1)}°).`;
+  else if (v >= 45) ex = `머리가 어깨보다 앞으로 나와 있는 가벼운 거북목 자세예요 (CVA ${v.toFixed(1)}°).`;
+  else ex = `머리가 어깨보다 많이 앞으로 나와 있어 목 뒤 근육에 부담이 큰 자세예요 (CVA ${v.toFixed(1)}°).`;
+  const rounded = ai && ai.shFwd > 0.12;
+  ex += rounded ? ' 어깨도 엉덩이보다 앞쪽으로 말려 있어요.' : ' 어깨는 엉덩이와 비슷한 선에 있어요.';
+  if (rounded && v >= 50) adv = '수건 가슴 펴기: 수건 양 끝을 잡고 팔을 뒤로 넘겨 가슴을 연 채 30초 × 3회.';
+  else if (v < 50) adv = '턱 당기기: 시선은 정면, 뒷머리를 뒤로 민다는 느낌으로 턱을 당겨 10초 × 10회' + (rounded ? ', 이어서 수건 가슴 펴기도 함께 하세요.' : '.');
+  else adv = '지금 자세를 유지하도록 턱 당기기 10초 × 10회를 꾸준히 해 주세요.';
+  $('aiExplain').textContent = ex; $('aiAdvice').textContent = '추천: ' + adv; $('ai').hidden = false;
+  return { ex, adv };
+}
+
+/* ---------- 사진 ---------- */
+$('photo').addEventListener('change', ev => {
+  const f = ev.target.files && ev.target.files[0]; if (!f) return;
+  const im = new Image();
+  im.onload = () => {
+    img = im; isExample = false; ai = null; $('ai').hidden = true;
+    pts = { ear: { x: .55, y: .35 }, c7: { x: .45, y: .55 } }; draw();
+    $('hint').textContent = '점은 끌어서 옮길 수 있어요. 귀(이주)·C7 버튼을 누르고 사진을 눌러 직접 찍어도 됩니다.';
+    if (landmarker) analyze(); else status('사진을 불러왔어요. AI가 준비되면 자동으로 분석해요. 직접 찍어도 됩니다.');
+  };
+  im.onerror = () => status('이 사진 형식을 열 수 없어요. JPG나 PNG로 다시 올려 주세요.', true);
+  im.src = URL.createObjectURL(f);
+});
+
+/* ---------- 참여자 기록 · 보내기 ---------- */
+const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec = s => JSON.parse(decodeURIComponent(escape(atob(s))));
+let mine = store.get('cva-mine', []);
+$('code').value = store.get('cva-code', '');
+function message(r) {
+  return `[거북목 측정 결과] ${r.c} · ${r.t}\nCVA ${r.v.toFixed(1)}° (${r.v < 50 ? '거북목 범위' : '정상 범위'})\n` +
+    (r.e ? `AI 설명: ${r.e}\n추천: ${r.d}\n` : '') + `(치료사 화면 붙여넣기용) CVA1:${enc(r)}`;
+}
+async function send(text) {
+  if (navigator.share) { try { await navigator.share({ text }); return '공유 창을 열었어요.'; } catch (e) { if (e && e.name === 'AbortError') return '보내기를 취소했어요. 기록에서 "다시 보내기"로 보낼 수 있어요.'; } }
+  try { await navigator.clipboard.writeText(text); return '결과 메시지를 복사했어요. 카카오톡에 붙여넣어 치료사에게 보내세요.'; }
+  catch { return '자동 복사가 안 돼요. 기록의 "다시 보내기"를 눌러 보세요.'; }
+}
+function renderMine() {
+  const box = $('myRecs'); box.textContent = '';
+  if (!mine.length) { box.append(el('p', 'small', '아직 저장한 기록이 없어요.')); return; }
+  for (let i = mine.length - 1; i >= 0; i--) {
+    const r = mine[i], c = el('div', 'rec'), top = el('div', 'top');
+    top.append(el('span', 'v', r.v.toFixed(1) + '°'), el('span', null, r.t), el('span', 'd', i === 0 ? '기준' : diffText(r.v, mine[0].v)), el('span', 'd', fmt(r.a)));
+    const re = el('button', 'x', '다시 보내기'); re.type = 'button'; re.onclick = async () => status(await send(message(r)));
+    const del = el('button', 'x', '삭제'); del.type = 'button'; del.style.marginLeft = '0'; del.onclick = () => { mine.splice(i, 1); store.set('cva-mine', mine); renderMine(); };
+    top.append(re, del); c.append(top);
+    if (r.e) c.append(el('p', null, r.e), el('p', null, '추천: ' + r.d));
+    box.append(c);
+  }
+}
+$('save').onclick = async () => {
+  if (isExample) { status('예시 그림은 저장하지 않아요. 사진을 올려 측정한 뒤 저장하세요.', true); return; }
+  const code = $('code').value.trim().replace(/[^\w가-힣-]/g, '').slice(0, 12);
+  if (!code) { status('참여자 번호를 입력해 주세요 (예: P07).', true); $('code').focus(); return; }
+  store.set('cva-code', code);
+  const x = ai ? explain() : null;
+  const r = { c: code, t: $('tag').value, v: Math.round(angle()*10)/10, a: new Date().toISOString(), s: ai ? (adjusted ? 'ai+수정' : 'ai') : '수동', e: x ? x.ex : '', d: x ? x.adv : '' };
+  mine.push(r); store.set('cva-mine', mine); renderMine();
+  status(`"${r.t}" 저장 완료. ` + await send(message(r)));
+};
+
+/* ---------- 치료사 ---------- */
+let all = store.get('cva-therapist', []), notes = store.get('cva-notes', {}), sel = null;
+const key = r => r.c + '|' + r.a;
+$('import').onclick = () => {
+  const found = [...$('paste').value.matchAll(/CVA1:([A-Za-z0-9+/=]+)/g)];
+  let added = 0, bad = 0;
+  for (const m of found) {
+    try { const r = dec(m[1]); if (!r || typeof r.v !== 'number' || !r.c) throw 0; if (!all.some(x => key(x) === key(r))) { all.push(r); added++; } } catch { bad++; }
+  }
+  all.sort((a, b) => a.a < b.a ? -1 : 1); store.set('cva-therapist', all);
+  $('impMsg').textContent = found.length ? `새 기록 ${added}개 추가${bad ? `, 읽지 못한 것 ${bad}개` : ''}` : '결과 메시지를 찾지 못했어요.';
+  if (added) $('paste').value = '';
+  renderDash();
+};
+function groups() { const g = {}; for (const r of all) (g[r.c] ||= []).push(r); return g; }
+function renderDash() {
+  const tb = $('ptRows'); tb.textContent = ''; const g = groups();
+  const codes = Object.keys(g).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));
+  if (!codes.length) { const td = tb.insertRow().insertCell(); td.colSpan = 5; td.className = 'small'; td.textContent = '아직 불러온 기록이 없어요.'; }
+  for (const c of codes) {
+    const rs = g[c], f = rs[0], l = rs[rs.length - 1], tr = tb.insertRow();
+    tr.className = 'pick' + (sel === c ? ' sel' : ''); tr.tabIndex = 0;
+    tr.insertCell().textContent = c;
+    [String(rs.length), f.v.toFixed(1) + '°', l.v.toFixed(1) + '°', rs.length > 1 ? diffText(l.v, f.v) : '—'].forEach(t => { const td = tr.insertCell(); td.className = 'n'; td.textContent = t; });
+    const open = () => { sel = c; renderDash(); };
+    tr.onclick = open; tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+  }
+  renderDetail(g);
+}
+function renderDetail(g) {
+  const box = $('detail'); box.textContent = '';
+  if (!sel || !g[sel]) { box.append(el('p', 'small', '왼쪽 표에서 참여자를 누르면 기록과 AI 설명이 보이고, 피드백을 보낼 수 있어요.')); return; }
+  box.append(el('div', 'label', `${sel} 기록 · AI 설명`));
+  const rs = g[sel];
+  for (let i = rs.length - 1; i >= 0; i--) {
+    const r = rs[i], c = el('div', 'rec'), top = el('div', 'top');
+    top.append(el('span', 'v', r.v.toFixed(1) + '°'), el('span', null, r.t), el('span', 'd', i === 0 ? '기준' : diffText(r.v, rs[0].v)), el('span', 'd', fmt(r.a)));
+    c.append(top);
+    if (r.e) c.append(el('p', null, r.e), el('p', null, '추천: ' + r.d));
+    c.append(el('p', 'small', '측정: ' + r.s));
+    const ta = el('textarea'); ta.placeholder = '이 기록에 대한 피드백'; ta.maxLength = 300; ta.value = notes[key(r)] || ''; ta.setAttribute('aria-label', r.t + ' 피드백');
+    ta.onchange = () => { notes[key(r)] = ta.value.trim(); store.set('cva-notes', notes); };
+    const sb = el('button', 'btn sm', '피드백 보내기'); sb.type = 'button';
+    sb.onclick = async () => { notes[key(r)] = ta.value.trim(); store.set('cva-notes', notes); if (!ta.value.trim()) return; const m = await send(`[치료사 피드백] ${r.c} · ${r.t} (CVA ${r.v.toFixed(1)}°)\n${ta.value.trim()}`); sb.textContent = '보냄'; setTimeout(() => sb.textContent = '피드백 보내기', 1500); $('impMsg').textContent = m; };
+    const row = el('div', 'row'); row.append(sb); c.append(ta, row); box.append(c);
+  }
+  const rm = el('button', 'btn sm', `${sel} 기록 지우기`); rm.type = 'button'; rm.style.justifySelf = 'start';
+  rm.onclick = () => { if (!confirm(`${sel}의 기록을 이 기기에서 지울까요?`)) return; all = all.filter(r => r.c !== sel); store.set('cva-therapist', all); sel = null; renderDash(); };
+  box.append(rm);
+}
+$('csv').onclick = () => {
+  const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const lines = [['참여자', '시점', 'CVA', '측정일시', '측정방식', 'AI설명', '추천', '치료사피드백'].map(q).join(',')];
+  for (const r of all) lines.push([r.c, r.t, r.v, r.a, r.s, r.e, r.d, notes[key(r)]].map(q).join(','));
+  const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'cva_records.csv' }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+};
+
+window.addEventListener('resize', () => { if (!$('viewP').hidden) draw(); });
+document.fonts && document.fonts.ready.then(draw);
+draw(); renderMine();
+</script>
+</body>
+</html>
