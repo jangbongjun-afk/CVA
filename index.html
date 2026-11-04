@@ -45,8 +45,10 @@ canvas{display:block;width:100%;height:auto;max-height:68vh;object-fit:contain;b
 .readout{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .deg{font-family:var(--f-num);font-size:3.4rem;font-weight:600;line-height:1}
 .chip{font-size:.85rem;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
-.chip.good{color:var(--good)}.chip.warn{color:var(--warn)}.chip.none{color:var(--muted)}
-.scale{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--warn) 0 50%,var(--good) 50% 100%);opacity:.85}
+.chip.good{color:var(--good)}.chip.warn{color:var(--warn)}.chip.bad{color:var(--mark)}.chip.mid{color:var(--muted)}.chip.none{color:var(--muted)}
+.scale{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--mark) 0 33.3%,var(--warn) 33.3% 50%,var(--muted) 50% 60%,var(--good) 60% 100%);opacity:.85}
+.ticks{position:relative;height:1.2em}.ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}.ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
+.bands{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:.88rem}.bands b{font-family:var(--f-num);font-weight:600}
 .scale i{position:absolute;top:-4px;width:3px;height:18px;background:var(--ink);border-radius:2px;transform:translateX(-50%)}
 .ticks{display:flex;justify-content:space-between;font-family:var(--f-num);font-size:.75rem;color:var(--muted)}
 .status{font-size:.9rem;padding:10px 12px;border-radius:8px;background:var(--accent-soft)}
@@ -106,7 +108,7 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
       </div>
       <div>
         <div class="scale" aria-hidden="true"><i id="pin" style="left:0%"></i></div>
-        <div class="ticks"><span>35°</span><span>50° 기준</span><span>65°</span></div>
+        <div class="ticks"><span style="left:0">35°</span><span style="left:33.3%">45°</span><span style="left:50%">50°</span><span style="left:60%">53°</span><span style="left:100%">65°</span></div>
       </div>
       <div id="status" class="status">AI 모델을 준비하는 중이에요…</div>
 
@@ -142,7 +144,17 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
           <li>삼각대에 고정한 휴대폰으로 옆에서, 매번 같은 거리·높이로 찍어요. 머리부터 엉덩이까지 나오게 해 주세요.</li>
         </ol>
       </details>
-      <p class="small">AI는 Google MediaPipe 자세 인식 모델로, 귀와 어깨는 직접 찾고 C7은 어깨 위치로 추정해요. C7 점이 스티커와 다르면 끌어서 맞춘 뒤 저장하세요. CVA 50° 미만을 거북목으로 봅니다 (Abbasi et al., 2016). AI 설명은 참고용이며 진단이 아닙니다.</p>
+      <p class="small">AI는 Google MediaPipe 자세 인식 모델로, 귀와 어깨는 직접 찾고 C7은 어깨 위치로 추정해요. C7 점이 스티커와 다르면 끌어서 맞춘 뒤 저장하세요. AI 설명은 참고용이며 진단이 아닙니다.</p>
+      <details>
+        <summary>각도 기준 보기</summary>
+        <ul class="bands">
+          <li><b>53° 이상</b> 정상 범위</li>
+          <li><b>50~53°</b> 정상 하한 (경계)</li>
+          <li><b>45~50°</b> 가벼운 거북목</li>
+          <li><b>45° 미만</b> 중등도 이상 거북목</li>
+        </ul>
+        <p class="small">CVA는 연구마다 기준이 달라 하나의 표준이 없어요. 50° 미만을 거북목으로 보는 연구가 많고(Abbasi et al., 2016), 정상은 53° 초과, 심한 거북목은 45° 미만으로 나누기도 해요(Titcomb et al., 2024). 45.5°로 가벼운 거북목과 중등도 이상을 나눈 연구도 있어요(Mostafaee et al., 2022). 앉으면 서 있을 때보다 약 2° 작게 나오므로 서서 찍어 주세요.</p>
+      </details>
     </aside>
   </div>
 
@@ -221,8 +233,10 @@ function draw() {
 function readout() {
   const v = angle(), chip = $('chip'); $('deg').textContent = v.toFixed(1) + '°';
   if (isExample) { chip.className = 'chip none'; chip.textContent = '예시'; }
-  else if (v < 50) { chip.className = 'chip warn'; chip.textContent = '거북목 범위 (50° 미만)'; }
-  else { chip.className = 'chip good'; chip.textContent = '정상 범위 (50° 이상)'; }
+  else if (v < 45) { chip.className = 'chip bad'; chip.textContent = '중등도 이상 거북목 (45° 미만)'; }
+  else if (v < 50) { chip.className = 'chip warn'; chip.textContent = '가벼운 거북목 (45~50°)'; }
+  else if (v < 53) { chip.className = 'chip mid'; chip.textContent = '정상 하한 (50~53°)'; }
+  else { chip.className = 'chip good'; chip.textContent = '정상 범위 (53° 이상)'; }
   $('pin').style.left = Math.max(0, Math.min(100, (v - 35)/30*100)) + '%';
   if (ai && !isExample) explain();
 }
@@ -261,7 +275,7 @@ const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
       runningMode: 'IMAGE', numPoses: 1, minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3
     });
     clearTimeout(slow);
-    status('AI 준비 완료 (v2). 옆모습 사진을 올려 주세요.');
+    status('AI 준비 완료 (v3). 옆모습 사진을 올려 주세요.');
     if (img) analyze();
   } catch (e) {
     console.error(e);
@@ -310,10 +324,10 @@ function analyze() {
 /* AI 설명: 측정값(CVA, 어깨 위치)으로 문장을 만듦 */
 function explain() {
   const v = angle(); let ex, adv;
-  if (v >= 55) ex = `머리가 어깨 위에 비교적 바르게 놓여 있어요 (CVA ${v.toFixed(1)}°).`;
-  else if (v >= 50) ex = `머리가 어깨보다 살짝 앞에 있지만 정상 범위 안이에요 (CVA ${v.toFixed(1)}°).`;
-  else if (v >= 45) ex = `머리가 어깨보다 앞으로 나와 있는 가벼운 거북목 자세예요 (CVA ${v.toFixed(1)}°).`;
-  else ex = `머리가 어깨보다 많이 앞으로 나와 있어 목 뒤 근육에 부담이 큰 자세예요 (CVA ${v.toFixed(1)}°).`;
+  if (v >= 53) ex = `머리가 어깨 위에 비교적 바르게 놓여 있어요 (CVA ${v.toFixed(1)}°, 정상 범위).`;
+  else if (v >= 50) ex = `머리가 어깨보다 살짝 앞에 있어요. 거북목 기준(50°)보다는 크지만 정상 하한이에요 (CVA ${v.toFixed(1)}°).`;
+  else if (v >= 45) ex = `머리가 어깨보다 앞으로 나와 있는 가벼운 거북목 자세예요 (CVA ${v.toFixed(1)}°, 45~50°).`;
+  else ex = `머리가 어깨보다 많이 앞으로 나와 있는 중등도 이상 거북목 자세예요 (CVA ${v.toFixed(1)}°, 45° 미만).`;
   const rounded = ai && ai.shFwd > 0.12;
   ex += rounded ? ' 어깨도 엉덩이보다 앞쪽으로 말려 있어요.' : ' 어깨는 엉덩이와 비슷한 선에 있어요.';
   if (rounded && v >= 50) adv = '수건 가슴 펴기: 수건 양 끝을 잡고 팔을 뒤로 넘겨 가슴을 연 채 30초 × 3회.';
@@ -343,7 +357,7 @@ const dec = s => JSON.parse(decodeURIComponent(escape(atob(s))));
 let mine = store.get('cva-mine', []);
 $('code').value = store.get('cva-code', '');
 function message(r) {
-  return `[거북목 측정 결과] ${r.c} · ${r.t}\nCVA ${r.v.toFixed(1)}° (${r.v < 50 ? '거북목 범위' : '정상 범위'})\n` +
+  return `[거북목 측정 결과] ${r.c} · ${r.t}\nCVA ${r.v.toFixed(1)}° (${r.v < 45 ? '중등도 이상 거북목' : r.v < 50 ? '가벼운 거북목' : r.v < 53 ? '정상 하한' : '정상 범위'})\n` +
     (r.e ? `AI 설명: ${r.e}\n추천: ${r.d}\n` : '') + `(치료사 화면 붙여넣기용) CVA1:${enc(r)}`;
 }
 async function send(text) {
