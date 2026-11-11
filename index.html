@@ -210,6 +210,8 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
       <div class="row">
         <button id="import" class="btn primary" type="button">불러오기</button>
         <button id="csv" class="btn" type="button">CSV 내려받기</button>
+        <button id="bak" class="btn" type="button">백업 저장</button>
+        <span class="file btn"><span>백업 불러오기</span><input id="restore" type="file" accept=".json,application/json" aria-label="백업 파일 불러오기"></span>
         <span id="impMsg" class="small"></span>
       </div>
       <div class="tblwrap">
@@ -218,7 +220,8 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
           <tbody id="ptRows"></tbody>
         </table>
       </div>
-      <p class="small">기록은 이 기기(브라우저)에만 저장돼요. 연구 자료는 CSV로 내려받아 따로 보관하세요.</p>
+      <p class="small">기록은 이 기기(브라우저)에만 저장돼요. 아이폰 사파리는 7일 넘게 열지 않으면 기록을 지울 수 있으니, 메시지를 불러온 뒤에는 꼭 "백업 저장"을 눌러 파일로 보관하세요. 기기를 바꾸거나 기록이 사라지면 "백업 불러오기"로 되살릴 수 있어요.</p>
+      <p class="small" id="bakInfo"></p>
     </section>
     <section class="card" id="detail">
       <p class="small">왼쪽 표에서 참여자를 누르면 기록과 AI 설명이 보이고, 피드백을 보낼 수 있어요.</p>
@@ -318,7 +321,7 @@ const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
       runningMode: 'IMAGE', numPoses: 1, minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3
     });
     clearTimeout(slow);
-    status('AI 준비 완료 (v4). 옆모습 사진을 올려 주세요.');
+    status('AI 준비 완료 (v5). 옆모습 사진을 올려 주세요.');
     if (img) analyze();
   } catch (e) {
     console.error(e);
@@ -419,6 +422,7 @@ function renderMine() {
     const del = el('button', 'x', '삭제'); del.type = 'button'; del.style.marginLeft = '0'; del.onclick = () => { mine.splice(i, 1); store.set('cva-mine', mine); renderMine(); };
     top.append(re, del); c.append(top);
     if (r.e) c.append(el('p', null, r.e), el('p', null, '추천: ' + r.d));
+    if (typeof r.va === 'number' && Math.abs(r.va - r.v) >= 0.1) c.append(el('p', 'small', `AI 자동 ${r.va.toFixed(1)}° → 점 보정 후 ${r.v.toFixed(1)}°`));
     box.append(c);
   }
 }
@@ -428,7 +432,7 @@ $('save').onclick = async () => {
   if (!code) { status('참여자 번호를 입력해 주세요 (예: P07).', true); $('code').focus(); return; }
   store.set('cva-code', code);
   const x = ai ? explain() : null;
-  const r = { c: code, t: $('tag').value, v: Math.round(angle()*10)/10, a: new Date().toISOString(), s: ai ? (adjusted ? 'ai+수정' : 'ai') : '수동', e: x ? x.ex : '', d: x ? x.adv : '', x: exSummary() };
+  const r = { c: code, t: $('tag').value, v: Math.round(angle()*10)/10, a: new Date().toISOString(), s: ai ? (adjusted ? 'ai+수정' : 'ai') : '수동', e: x ? x.ex : '', d: x ? x.adv : '', x: exSummary(), va: ai && typeof ai.cvaAi === 'number' ? ai.cvaAi : null };
   mine.push(r); store.set('cva-mine', mine); renderMine();
   status(`"${r.t}" 저장 완료. ` + await send(message(r)));
 };
@@ -461,6 +465,7 @@ function renderDash() {
     tr.onclick = open; tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
   }
   renderDetail(g);
+  bakInfo();
 }
 function renderDetail(g) {
   const box = $('detail'); box.textContent = '';
@@ -472,7 +477,7 @@ function renderDetail(g) {
     top.append(el('span', 'v', r.v.toFixed(1) + '°'), el('span', null, r.t), el('span', 'd', i === 0 ? '기준' : diffText(r.v, rs[0].v)), el('span', 'd', fmt(r.a)));
     c.append(top);
     if (r.e) c.append(el('p', null, r.e), el('p', null, '추천: ' + r.d));
-    c.append(el('p', 'small', '측정: ' + r.s + (r.x ? ` · 운동: 이번 주 ${r.x.w}/5일, 누적 ${r.x.n}/20일` : '')));
+    c.append(el('p', 'small', '측정: ' + r.s + (typeof r.va === 'number' ? ` (AI 자동 ${r.va.toFixed(1)}° → 저장 ${r.v.toFixed(1)}°)` : '') + (r.x ? ` · 운동: 이번 주 ${r.x.w}/5일, 누적 ${r.x.n}/20일` : '')));
     const ta = el('textarea'); ta.placeholder = '이 기록에 대한 피드백'; ta.maxLength = 300; ta.value = notes[key(r)] || ''; ta.setAttribute('aria-label', r.t + ' 피드백');
     ta.onchange = () => { notes[key(r)] = ta.value.trim(); store.set('cva-notes', notes); };
     const sb = el('button', 'btn sm', '피드백 보내기'); sb.type = 'button';
@@ -485,8 +490,8 @@ function renderDetail(g) {
 }
 $('csv').onclick = () => {
   const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
-  const lines = [['참여자', '시점', 'CVA', '측정일시', '측정방식', 'AI설명', '추천', '주간운동(일)', '누적운동(일)', '치료사피드백'].map(q).join(',')];
-  for (const r of all) lines.push([r.c, r.t, r.v, r.a, r.s, r.e, r.d, r.x ? r.x.w : '', r.x ? r.x.n : '', notes[key(r)]].map(q).join(','));
+  const lines = [['참여자', '시점', 'CVA(저장값)', 'AI자동CVA', '보정차이', '측정일시', '측정방식', 'AI설명', '추천', '주간운동(일)', '누적운동(일)', '치료사피드백'].map(q).join(',')];
+  for (const r of all) lines.push([r.c, r.t, r.v, typeof r.va === 'number' ? r.va : '', typeof r.va === 'number' ? Math.round((r.v - r.va) * 10) / 10 : '', r.a, r.s, r.e, r.d, r.x ? r.x.w : '', r.x ? r.x.n : '', notes[key(r)]].map(q).join(','));
   const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: 'cva_records.csv' }); document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -545,6 +550,34 @@ document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
   }, 1000);
 });
 $('tStop').onclick = stopTimer;
+
+/* ---------- 백업·복원 ---------- */
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function bakInfo() { const t = store.get('cva-backup-at', null); $('bakInfo').textContent = t ? `마지막 백업: ${fmt(t)} · 기록 ${all.length}개` : `아직 백업하지 않았어요 · 기록 ${all.length}개`; }
+$('bak').onclick = () => {
+  const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  download(`cva_backup_${stamp}.json`, JSON.stringify({ app: 'cva', v: 1, at: d.toISOString(), records: all, notes }, null, 1), 'application/json');
+  store.set('cva-backup-at', d.toISOString()); bakInfo();
+  $('impMsg').textContent = `백업 파일을 만들었어요 (기록 ${all.length}개). 파일 앱이나 드라이브에 보관하세요.`;
+};
+$('restore').addEventListener('change', async ev => {
+  const f = ev.target.files && ev.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || d.app !== 'cva' || !Array.isArray(d.records)) throw 0;
+    let added = 0;
+    for (const r of d.records) if (r && r.c && typeof r.v === 'number' && !all.some(x => key(x) === key(r))) { all.push(r); added++; }
+    for (const k in (d.notes || {})) if (!notes[k] && typeof d.notes[k] === 'string') notes[k] = d.notes[k];
+    all.sort((a, b) => a.a < b.a ? -1 : 1); store.set('cva-therapist', all); store.set('cva-notes', notes);
+    $('impMsg').textContent = `백업을 불러왔어요. 새 기록 ${added}개 추가 (전체 ${all.length}개).`;
+    renderDash(); bakInfo();
+  } catch { $('impMsg').textContent = '백업 파일을 읽지 못했어요. 이 앱에서 만든 cva_backup 파일인지 확인해 주세요.'; }
+  ev.target.value = '';
+});
 
 window.addEventListener('resize', () => { if (!$('viewP').hidden) draw(); });
 document.fonts && document.fonts.ready.then(draw);
