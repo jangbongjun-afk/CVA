@@ -321,7 +321,7 @@ const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
       runningMode: 'IMAGE', numPoses: 1, minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3
     });
     clearTimeout(slow);
-    status('AI 준비 완료 (v5). 옆모습 사진을 올려 주세요.');
+    status('AI 준비 완료 (v6). 옆모습 사진을 올려 주세요.');
     if (img) analyze();
   } catch (e) {
     console.error(e);
@@ -401,7 +401,16 @@ $('photo').addEventListener('change', ev => {
 const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 const dec = s => JSON.parse(decodeURIComponent(escape(atob(s))));
 let mine = store.get('cva-mine', []);
+/* 참여자 번호 정리: 공백·기호 제거, 영문 대문자 (p 07 → P07) */
+const normCode = v => String(v || '').replace(/[^\w가-힣-]/g, '').toUpperCase().slice(0, 12);
+/* 측정 시점 자동 선택: 첫 기록이면 T0, 이후 첫 기록으로부터 지난 주 수 */
+function autoTag() {
+  const sel = $('tag'); if (!mine.length) { sel.selectedIndex = 0; return; }
+  const days = (Date.now() - new Date(mine[0].a).getTime()) / 864e5, w = Math.floor(days / 7);
+  sel.selectedIndex = w <= 0 ? 5 : Math.min(w, 4);
+}
 $('code').value = store.get('cva-code', '');
+$('code').addEventListener('change', () => { $('code').value = normCode($('code').value); });
 function message(r) {
   return `[거북목 측정 결과] ${r.c} · ${r.t}\nCVA ${r.v.toFixed(1)}° (${r.v < 45 ? '중등도 이상 거북목' : r.v < 50 ? '가벼운 거북목' : r.v < 53 ? '정상 하한' : '정상 범위'})\n` +
     (r.e ? `AI 설명: ${r.e}\n추천: ${r.d}\n` : '') + (r.x ? `운동: 이번 주 ${r.x.w}/5일 · 누적 ${r.x.n}/20일\n` : '') + `(치료사 화면 붙여넣기용) CVA1:${enc(r)}`;
@@ -428,23 +437,24 @@ function renderMine() {
 }
 $('save').onclick = async () => {
   if (isExample) { status('예시 그림은 저장하지 않아요. 사진을 올려 측정한 뒤 저장하세요.', true); return; }
-  const code = $('code').value.trim().replace(/[^\w가-힣-]/g, '').slice(0, 12);
+  const code = normCode($('code').value); $('code').value = code;
   if (!code) { status('참여자 번호를 입력해 주세요 (예: P07).', true); $('code').focus(); return; }
   store.set('cva-code', code);
   const x = ai ? explain() : null;
   const r = { c: code, t: $('tag').value, v: Math.round(angle()*10)/10, a: new Date().toISOString(), s: ai ? (adjusted ? 'ai+수정' : 'ai') : '수동', e: x ? x.ex : '', d: x ? x.adv : '', x: exSummary(), va: ai && typeof ai.cvaAi === 'number' ? ai.cvaAi : null };
-  mine.push(r); store.set('cva-mine', mine); renderMine();
+  mine.push(r); store.set('cva-mine', mine); renderMine(); autoTag();
   status(`"${r.t}" 저장 완료. ` + await send(message(r)));
 };
 
 /* ---------- 치료사 ---------- */
 let all = store.get('cva-therapist', []), notes = store.get('cva-notes', {}), sel = null;
+all.forEach(r => { if (r && r.c) r.c = normCode(r.c); });
 const key = r => r.c + '|' + r.a;
 $('import').onclick = () => {
   const found = [...$('paste').value.matchAll(/CVA1:([A-Za-z0-9+/=]+)/g)];
   let added = 0, bad = 0;
   for (const m of found) {
-    try { const r = dec(m[1]); if (!r || typeof r.v !== 'number' || !r.c) throw 0; if (!all.some(x => key(x) === key(r))) { all.push(r); added++; } } catch { bad++; }
+    try { const r = dec(m[1]); if (!r || typeof r.v !== 'number' || !r.c) throw 0; r.c = normCode(r.c); if (!all.some(x => key(x) === key(r))) { all.push(r); added++; } } catch { bad++; }
   }
   all.sort((a, b) => a.a < b.a ? -1 : 1); store.set('cva-therapist', all);
   $('impMsg').textContent = found.length ? `새 기록 ${added}개 추가${bad ? `, 읽지 못한 것 ${bad}개` : ''}` : '결과 메시지를 찾지 못했어요.';
@@ -570,7 +580,7 @@ $('restore').addEventListener('change', async ev => {
     const d = JSON.parse(await f.text());
     if (!d || d.app !== 'cva' || !Array.isArray(d.records)) throw 0;
     let added = 0;
-    for (const r of d.records) if (r && r.c && typeof r.v === 'number' && !all.some(x => key(x) === key(r))) { all.push(r); added++; }
+    for (const r of d.records) { if (!(r && r.c && typeof r.v === 'number')) continue; r.c = normCode(r.c); if (!all.some(x => key(x) === key(r))) { all.push(r); added++; } }
     for (const k in (d.notes || {})) if (!notes[k] && typeof d.notes[k] === 'string') notes[k] = d.notes[k];
     all.sort((a, b) => a.a < b.a ? -1 : 1); store.set('cva-therapist', all); store.set('cva-notes', notes);
     $('impMsg').textContent = `백업을 불러왔어요. 새 기록 ${added}개 추가 (전체 ${all.length}개).`;
@@ -581,7 +591,7 @@ $('restore').addEventListener('change', async ev => {
 
 window.addEventListener('resize', () => { if (!$('viewP').hidden) draw(); });
 document.fonts && document.fonts.ready.then(draw);
-draw(); renderMine();
+draw(); renderMine(); autoTag();
 </script>
 </body>
 </html>
