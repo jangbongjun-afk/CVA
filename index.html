@@ -184,6 +184,11 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
         <p class="small">30초 × 3세트 · 말아 둔 수건을 날개뼈 아래 등에 가로로 대고 누워 양팔을 벌려요. 통증 없이 가슴이 늘어나는 정도까지.</p>
         <div class="row"><button class="btn primary" type="button" data-start="towel">타이머 시작</button><button class="btn" type="button" data-check="towel">했어요</button></div>
       </div>
+      <div id="plusWrap" hidden>
+        <div class="label" style="margin-top:6px">맞춤 보조 운동 · AI 추천</div>
+        <p class="small" id="plusWhy"></p>
+        <div id="plusList" style="display:grid;gap:14px"></div>
+      </div>
       <div class="timer" id="timer" hidden aria-live="polite">
         <div id="tPhase" class="label">유지</div>
         <div id="tSec" class="big">10</div>
@@ -198,7 +203,7 @@ tr.pick{cursor:pointer} tr.pick:hover td,tr.sel td{background:var(--accent-soft)
         <div><div class="stat" id="wkStat">0/5</div><div class="small">이번 주 (목표 주 5일)</div></div>
         <div><div class="stat" id="totStat">0/20</div><div class="small">누적 (4주 목표 20일)</div></div>
       </div>
-      <p class="small">두 운동을 모두 하면 그날이 완료로 표시돼요. 측정 결과를 보낼 때 운동 기록도 함께 전송돼요. 운동 중 목 통증이 심해지거나 팔이 저리면 멈추고 치료사에게 알려 주세요.</p>
+      <p class="small">①·② 두 운동을 모두 하면 그날이 완료로 표시돼요. 맞춤 보조 운동은 여유가 있을 때 더하는 운동이에요. 측정 결과를 보낼 때 운동 기록도 함께 전송돼요. 운동 중 목 통증이 심해지거나 팔이 저리면 멈추고 치료사에게 알려 주세요.</p>
     </aside>
   </div>
 
@@ -321,7 +326,7 @@ const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
       runningMode: 'IMAGE', numPoses: 1, minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3
     });
     clearTimeout(slow);
-    status('AI 준비 완료 (v6). 옆모습 사진을 올려 주세요.');
+    status('AI 준비 완료 (v7). 옆모습 사진을 올려 주세요.');
     if (img) analyze();
   } catch (e) {
     console.error(e);
@@ -379,6 +384,9 @@ function explain() {
   if (rounded && v >= 50) adv = '수건 가슴 펴기: 수건 양 끝을 잡고 팔을 뒤로 넘겨 가슴을 연 채 30초 × 3회.';
   else if (v < 50) adv = '턱 당기기: 시선은 정면, 뒷머리를 뒤로 민다는 느낌으로 턱을 당겨 10초 × 10회' + (rounded ? ', 이어서 수건 가슴 펴기도 함께 하세요.' : '.');
   else adv = '지금 자세를 유지하도록 턱 당기기 10초 × 10회를 꾸준히 해 주세요.';
+  const plus = pickPlus(v, rounded);
+  if (plus.length) adv += ' 맞춤 보조 운동: ' + plus.map(k => `${PLUS[k].name}(${PLUS[k].dose})`).join(', ') + ' — 오늘의 운동 탭에 추가했어요.';
+  store.set('cva-plus', { keys: plus, v: Math.round(v*10)/10, rounded: !!rounded }); renderPlus();
   $('aiExplain').textContent = ex; $('aiAdvice').textContent = '추천: ' + adv; $('ai').hidden = false;
   return { ex, adv };
 }
@@ -525,7 +533,45 @@ function chart(recs) {
 }
 
 /* ---------- 오늘의 운동 ---------- */
-const DOSE = { chin: { hold: 10, rest: 5, reps: 10, unit: '회' }, towel: { hold: 30, rest: 10, reps: 3, unit: '세트' } };
+const DOSE = { chin: { hold: 10, rest: 5, reps: 10, unit: '회' }, towel: { hold: 30, rest: 10, reps: 3, unit: '세트' },
+  lift: { hold: 10, rest: 5, reps: 10, unit: '회' }, scap: { hold: 5, rest: 3, reps: 10, unit: '회' }, wall: { hold: 3, rest: 2, reps: 10, unit: '회' },
+  door: { hold: 30, rest: 10, reps: 3, unit: '세트' }, neck: { hold: 30, rest: 10, reps: 4, unit: '회 (좌우 번갈아)' }, yt: { hold: 3, rest: 2, reps: 10, unit: '회' } };
+const HOLD_LABEL = { chin: '턱 당기고 유지', towel: '가슴 펴고 유지', lift: '턱 당긴 채 머리 들고 유지', scap: '날개뼈 모으고 유지', wall: '팔 올렸다 내리기',
+  door: '가슴 늘리고 유지', neck: '목 옆·뒤 늘리고 유지', yt: '팔 들고 유지' };
+/* 맞춤 보조 운동: 거북목 교정 운동 연구에서 함께 쓰는 강화(깊은 목 굽힘근·날개뼈 주변)와 스트레칭(가슴·목 뒤) */
+const PLUS = {
+  lift: { name: '누워서 턱 당겨 머리 들기', dose: '10초 × 10회', how: '바로 누워 턱을 먼저 당긴 다음, 머리를 바닥에서 2~3cm만 들고 버텨요. 턱이 들리면 멈춰요.', why: '깊은 목 굽힘근 지구력' },
+  scap: { name: '날개뼈 모으기', dose: '5초 × 10회', how: '앉거나 서서 어깨를 내린 채 날개뼈를 등 가운데로 모으고 버텨요. 고무밴드를 당기며 해도 돼요.', why: '등 위쪽 근육 강화' },
+  wall: { name: '벽 천사', dose: '10회', how: '벽에 엉덩이·등·뒷머리를 붙이고, 팔을 W자로 붙인 채 Y자로 천천히 올렸다 내려요.', why: '날개뼈 조절·등 펴기' },
+  door: { name: '문틀 가슴 스트레칭', dose: '30초 × 3세트', how: '문틀에 팔꿈치를 어깨 높이로 대고, 한 발 앞으로 내디뎌 가슴 앞쪽이 늘어나게 해요.', why: '짧아진 가슴 근육 늘리기' },
+  neck: { name: '목 뒤·위쪽 어깨 스트레칭', dose: '30초 × 좌우 2회', how: '고개를 살짝 숙인 채 한쪽으로 기울이고, 같은 쪽 손으로 머리를 가볍게 눌러요. 반대쪽 어깨는 내려요.', why: '뻣뻣한 목 뒤 근육 풀기' },
+  yt: { name: '엎드려 Y·T 들기', dose: '3초 × 10회', how: '엎드려 이마를 수건에 대고, 엄지를 위로 한 채 팔을 Y자·T자로 번갈아 들어 올려요.', why: '아래쪽 등 근육 강화' }
+};
+function pickPlus(v, rounded) {
+  const out = [];
+  if (v < 50) out.push('lift');
+  if (rounded) out.push('door');
+  if (v < 45 && !rounded) out.push('neck');
+  if (rounded && v >= 50) out.push('scap');
+  if (v >= 50 && !rounded) out.push('yt');
+  for (const k of rounded ? ['scap', 'wall'] : ['neck', 'scap']) if (out.length < 2 && !out.includes(k)) out.push(k);
+  return out.slice(0, 2);
+}
+function renderPlus() {
+  const p = store.get('cva-plus', null), box = $('plusList'); if (!box) return;
+  box.textContent = '';
+  if (!p || !p.keys || !p.keys.length) { $('plusWrap').hidden = true; return; }
+  const t = ex[dayKey(new Date())] || {};
+  $('plusWhy').textContent = `마지막 측정(CVA ${p.v}°${p.rounded ? ', 어깨 말림' : ''})에 맞춰 골랐어요. 통증 없는 범위에서만 해 주세요.`;
+  p.keys.forEach(k => {
+    const P = PLUS[k], c = el('div', 'ex' + (t[k] ? ' done' : ''));
+    c.append(el('h3', null, P.name), el('p', 'small', `${P.dose} · ${P.why} · ${P.how}`));
+    const row = el('div', 'row'), s = el('button', 'btn primary', '타이머 시작'), ck = el('button', 'btn', t[k] ? '완료 ✓ (취소)' : '했어요');
+    s.type = ck.type = 'button'; s.onclick = () => startTimer(k); ck.onclick = () => setCheck(k, !t[k]);
+    row.append(s, ck); c.append(row); box.append(c);
+  });
+  $('plusWrap').hidden = false;
+}
 let ex = store.get('cva-ex', {});
 const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const isDone = k => !!(ex[k] && ex[k].chin && ex[k].towel);
@@ -538,16 +584,18 @@ function renderEx() {
   const wk = $('week'); wk.textContent = '';
   weekDays().forEach((dd, i) => { const c = el('div', dayKey(dd) === today ? 'today' : null, '월화수목금토일'[i]); const dot = el('i', isDone(dayKey(dd)) ? 'on' : null); dot.setAttribute('aria-label', isDone(dayKey(dd)) ? '완료' : '미완료'); c.append(dot); wk.append(c); });
   const s = exSummary() || { w: 0, n: 0 }; $('wkStat').textContent = `${s.w}/5`; $('totStat').textContent = `${Math.min(s.n, 20)}/20`;
+  renderPlus();
 }
 function setCheck(k, v) { const today = dayKey(new Date()); ex[today] = { ...(ex[today] || {}), [k]: v }; store.set('cva-ex', ex); renderEx(); }
 document.querySelectorAll('[data-check]').forEach(b => b.onclick = () => { const k = b.dataset.check, t = ex[dayKey(new Date())] || {}; setCheck(k, !t[k]); });
 let tm = null, actx = null;
 function beep(f) { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; g.gain.value = 0.15; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.18); } catch {} }
 function stopTimer() { clearInterval(tm); tm = null; $('timer').hidden = true; }
-document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
-  const k = b.dataset.start, D = DOSE[k]; stopTimer(); beep(880);
+document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => startTimer(b.dataset.start));
+function startTimer(k) {
+  const D = DOSE[k]; stopTimer(); beep(880);
   let rep = 1, phase = 'hold', left = D.hold;
-  const show = () => { $('tPhase').textContent = phase === 'hold' ? (k === 'chin' ? '턱 당기고 유지' : '가슴 펴고 유지') : '쉬기'; $('tSec').textContent = left; $('tRep').textContent = `${rep} / ${D.reps}${D.unit}`; };
+  const show = () => { $('tPhase').textContent = phase === 'hold' ? HOLD_LABEL[k] : '쉬기'; $('tSec').textContent = left; $('tRep').textContent = `${rep} / ${D.reps}${D.unit}`; };
   $('timer').hidden = false; show(); $('timer').scrollIntoView({ behavior: 'smooth', block: 'center' });
   tm = setInterval(() => {
     left--;
@@ -558,7 +606,7 @@ document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
     } else { phase = 'hold'; left = D.hold; rep++; beep(880); }
     show();
   }, 1000);
-});
+}
 $('tStop').onclick = stopTimer;
 
 /* ---------- 백업·복원 ---------- */
